@@ -790,6 +790,22 @@ const crashReporter = {
 
 const net = {
   async fetch(input: string | URL, init?: RequestInit): Promise<Response> {
+    try {
+      const url = new URL(input.toString());
+      if (
+        (init?.method ?? "GET").toUpperCase() === "POST" &&
+        url.origin === "https://chatgpt.com" &&
+        url.pathname === "/ces/v1/rgstr"
+      ) {
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+    } catch {
+      // Let the normal fetch implementation report malformed URLs.
+    }
+
     // log("net.fetch", [input, init]);
     if (typeof globalThis.fetch === "function") {
       return globalThis.fetch(input as URL | RequestInfo, init);
