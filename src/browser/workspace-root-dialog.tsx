@@ -522,6 +522,23 @@ function ensureHost(): HTMLElement {
   if (!element) {
     element = document.createElement("div");
     element.id = DIALOG_ID;
+    Object.assign(element.style, {
+      inset: "0",
+      isolation: "isolate",
+      pointerEvents: "none",
+      position: "fixed",
+      zIndex: "var(--max-app-overlay-z-index, 10000)",
+    });
+    for (const eventName of [
+      "click",
+      "focusin",
+      "mousedown",
+      "pointerdown",
+      "touchmove",
+      "wheel",
+    ] as const) {
+      element.addEventListener(eventName, (event) => event.stopPropagation());
+    }
     document.body.append(element);
   }
   return element;
