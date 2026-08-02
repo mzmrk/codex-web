@@ -92,6 +92,10 @@ The first command reports UID and GID 1032. The second reports root only while
 `CODEX_PASSWORDLESS_SUDO` is enabled. `docker top codex-web` can be used to
 confirm that the long-running application processes use the selected identity.
 
+The default `compose.yml` publishes only Caddy on port 8214; codex-web is
+reachable only over the dedicated Compose network. Use `compose.direct.yml`
+when an unencrypted, localhost-only direct port is explicitly preferred.
+
 ## Resolving a failed rebase
 
 Fetch both remotes, reset the local downstream branch to origin/codex/docker,

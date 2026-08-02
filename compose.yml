@@ -10,9 +10,61 @@ services:
       PGID: 1000
       PUID: 1000
 
+    volumes:
+      - ./workspace:/home/node/Documents
+      - ./codex-auth:/home/node/.codex
+
+    networks:
+      - codex-web-private
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: codex-web-caddy
+    restart: unless-stopped
+    depends_on:
+      - codex-web
+
+    environment:
+      CADDY_HOST: "localhost"
+      CADDY_USERNAME: "codex"
+
+      # Default password: CHANGEME
+      # To change it, replace NEW_PASSWORD, run this command, and paste its output below:
+      # docker run --rm caddy:2-alpine sh -c "caddy hash-password --plaintext NEW_PASSWORD | sed 's/[$]/&&/g'"
+      CADDY_PASSWORD_HASH: "$$2a$$14$$p6HAYNIHJiCqNMC5NmHoKO490zl4bYX84Gdq8kKoKiwKmNXjAD73y"
+
+      CADDY_CONFIG: |
+        {
+          default_sni {$$CADDY_HOST}
+        }
+        https://{$$CADDY_HOST}:8214 {
+          tls internal
+          basic_auth {
+            {$$CADDY_USERNAME} {$$CADDY_PASSWORD_HASH}
+          }
+          reverse_proxy codex-web:8214
+        }
+
+    entrypoint: ["/bin/sh", "-eu", "-c"]
+
+    command:
+      - |
+        printf '%s' "$$CADDY_CONFIG" > /etc/caddy/Caddyfile
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+
     ports:
       - "127.0.0.1:8214:8214"
 
     volumes:
-      - ./workspace:/home/node/Documents
-      - ./codex-auth:/home/node/.codex
+      - caddy-data:/data
+      - caddy-config:/config
+
+    networks:
+      - codex-web-private
+
+networks:
+  codex-web-private:
+
+volumes:
+  caddy-config:
+  caddy-data:
