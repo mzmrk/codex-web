@@ -40,6 +40,50 @@ nix run github:0xcaff/codex-web
 
 then open <http://127.0.0.1:8214> in a browser.
 
+### docker
+
+The default Compose setup exposes codex-web through Caddy with HTTPS and Basic
+Auth. Edit the three Caddy values directly in `compose.yml`. Set `CADDY_HOST`
+to the hostname or IP address clients will use. The initial username is `codex`
+and the initial password is `CHANGEME`; change the password before exposing the
+service beyond a trusted network. To generate a Compose-ready replacement hash,
+replace `NEW_PASSWORD` in this command:
+
+```bash
+docker run --rm caddy:2-alpine sh -c "caddy hash-password --plaintext NEW_PASSWORD | sed 's/[$]/&&/g'"
+```
+
+Paste the command's output into `CADDY_PASSWORD_HASH`, then start the services:
+
+```bash
+docker compose up -d
+```
+
+Open `https://HOST:8214`. Caddy uses its internal certificate authority so the
+generated root certificate must be trusted by each client. Export it with:
+
+```bash
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+```
+
+Import `caddy-root.crt` into the operating system or browser trust store. To
+run codex-web directly over plain HTTP instead, stop the HTTPS stack and use
+the localhost-only direct-access file:
+
+```bash
+docker compose down
+docker compose -f compose.direct.yml up -d
+```
+
+Open `http://127.0.0.1:8214`. To deliberately expose unencrypted direct access
+on every host interface, change its port mapping to `8214:8214`.
+
+Both modes persist projects in `./workspace` and Codex state in `./codex-auth`.
+Caddy's certificate authority and runtime state persist in the `caddy-data` and
+`caddy-config` named volumes. Its Caddyfile is generated inside the container
+from the literal `CADDY_CONFIG` value in `compose.yml`; no `.env` or separate
+Caddyfile is required.
+
 ### sign in
 
 ensure the codex cli on the host machine is signed in before starting the

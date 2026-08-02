@@ -1,0 +1,120 @@
+name: Rebase downstream and publish
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: downstream-rebase-and-publish
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/mzmrk/codex-web
+  UPSTREAM_REPOSITORY: https://github.com/0xcaff/codex-web.git
+
+jobs:
+  rebase-build-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the downstream branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: codex/docker
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream and detect changes
+        id: upstream
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git remote add upstream "$UPSTREAM_REPOSITORY" 2>/dev/null \
+            || git remote set-url upstream "$UPSTREAM_REPOSITORY"
+          git fetch --prune upstream main
+
+          old_head="$(git rev-parse HEAD)"
+          upstream_sha="$(git rev-parse upstream/main)"
+          echo "old_head=$old_head" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebase downstream commits one by one
+        if: steps.upstream.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if ! git rebase upstream/main; then
+            echo "::error::The downstream commit stack conflicts with upstream/main."
+            git status --short
+            git diff --name-only --diff-filter=U
+            git rebase --abort
+            exit 1
+          fi
+
+      - name: Record candidate metadata
+        if: steps.upstream.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        id: candidate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          candidate_sha="$(git rev-parse HEAD)"
+          upstream_short="$(git rev-parse --short=12 upstream/main)"
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "upstream_short=$upstream_short" >> "$GITHUB_OUTPUT"
+          git diff --check upstream/main..HEAD
+
+      - name: Build the candidate image
+        if: steps.upstream.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build \
+            --pull \
+            --build-arg SOURCE_REVISION="${{ steps.candidate.outputs.candidate_sha }}" \
+            --tag "$IMAGE:latest" \
+            --tag "$IMAGE:upstream-${{ steps.candidate.outputs.upstream_short }}" \
+            .
+
+      - name: Update the rebased branch and upstream mirror
+        if: steps.upstream.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          archive_ref="refs/heads/codex/archive/$(date -u +'%Y-%m-%d_%H%M%SZ')"
+          git push \
+            origin \
+            "${{ steps.upstream.outputs.old_head }}:${archive_ref}"
+          git push \
+            --force-with-lease=refs/heads/codex/docker:${{ steps.upstream.outputs.old_head }} \
+            origin HEAD:refs/heads/codex/docker
+          git push origin upstream/main:refs/heads/main
+
+      - name: Log in to GitHub Container Registry
+        if: steps.upstream.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Publish the verified image
+        if: steps.upstream.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:upstream-${{ steps.candidate.outputs.upstream_short }}"
