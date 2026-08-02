@@ -40,6 +40,35 @@ nix run github:0xcaff/codex-web
 
 then open <http://127.0.0.1:8214> in a browser.
 
+### docker
+
+Set `CADDY_HOST` in `compose.yml` to the hostname or IP address clients will use.
+
+The default login is `codex` / `CHANGEME`. To change the password, replace
+`NEW_PASSWORD`, run this command, and paste its output into
+`CADDY_PASSWORD_HASH`:
+
+```bash
+docker run --rm caddy:2-alpine sh -c "caddy hash-password --plaintext 'NEW_PASSWORD' | sed 's/[$]/&&/g'"
+```
+
+Start the services:
+
+```bash
+docker compose up -d
+```
+
+Open `https://HOST:8214`.
+
+For localhost-only direct HTTP access:
+
+```bash
+docker compose down
+docker compose -f compose.direct.yml up -d
+```
+
+Open `http://127.0.0.1:8214`.
+
 ### sign in
 
 ensure the codex cli on the host machine is signed in before starting the
