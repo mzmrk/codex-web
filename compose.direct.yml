@@ -1,0 +1,18 @@
+services:
+  codex-web:
+    image: ghcr.io/mzmrk/codex-web:latest
+    container_name: codex-web
+    restart: unless-stopped
+    init: true
+
+    environment:
+      CODEX_PASSWORDLESS_SUDO: false
+      PGID: 1000
+      PUID: 1000
+
+    ports:
+      - "127.0.0.1:8214:8214"
+
+    volumes:
+      - ./workspace:/home/node/Documents
+      - ./codex-auth:/home/node/.codex
