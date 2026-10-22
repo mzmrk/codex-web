@@ -47,6 +47,9 @@ request data. Application warnings and errors remain enabled.
 ### docker
 
 Set `CADDY_HOST` in `compose.yml` to the hostname or IP address clients will use.
+On first start, the Caddy container generates one self-signed server certificate
+for that address and stores it in the `caddy-certs` volume. Container recreation
+reuses the same certificate; deleting the volume generates a replacement.
 
 The default login is `codex` / `CHANGEME`. To change the password, replace
 `NEW_PASSWORD`, run this command, and paste its output into

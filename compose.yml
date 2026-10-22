@@ -38,7 +38,7 @@ services:
           default_sni {$$CADDY_HOST}
         }
         https://{$$CADDY_HOST}:8214 {
-          tls internal
+          tls /certs/codex.crt /certs/codex.key
           basic_auth {
             {$$CADDY_USERNAME} {$$CADDY_PASSWORD_HASH}
           }
@@ -49,6 +49,36 @@ services:
 
     command:
       - |
+        cert=/certs/codex.crt
+        key=/certs/codex.key
+
+        if [ ! -s "$$cert" ] || [ ! -s "$$key" ]; then
+          apk add --no-cache openssl
+
+          case "$$CADDY_HOST" in
+            *:*) san="IP:$$CADDY_HOST" ;;
+            *[!0-9.]*) san="DNS:$$CADDY_HOST" ;;
+            *) san="IP:$$CADDY_HOST" ;;
+          esac
+
+          openssl req \
+            -x509 \
+            -newkey rsa:3072 \
+            -sha256 \
+            -days 3650 \
+            -nodes \
+            -keyout "$$key" \
+            -out "$$cert" \
+            -subj "/CN=$$CADDY_HOST" \
+            -addext "subjectAltName=$$san" \
+            -addext "basicConstraints=critical,CA:FALSE" \
+            -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+            -addext "extendedKeyUsage=serverAuth"
+
+          chmod 0600 "$$key"
+          chmod 0644 "$$cert"
+        fi
+
         printf '%s' "$$CADDY_CONFIG" > /etc/caddy/Caddyfile
         exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
 
@@ -58,6 +88,7 @@ services:
     volumes:
       - caddy-data:/data
       - caddy-config:/config
+      - caddy-certs:/certs
 
     networks:
       - codex-web-private
@@ -66,5 +97,6 @@ networks:
   codex-web-private:
 
 volumes:
+  caddy-certs:
   caddy-config:
   caddy-data:

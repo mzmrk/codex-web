@@ -1,9 +1,10 @@
 # Downstream maintenance
 
 This fork keeps `main` as an exact mirror of `0xcaff/codex-web:main`.
-The `codex/docker` branch adds three commits for project source selection,
-Statsig registration compatibility, and Docker packaging with upstream
-automation. The commits remain a linear stack rebased onto upstream `main`.
+The `codex/docker` branch adds three commits for Statsig registration
+compatibility, Docker packaging with upstream automation, and a persistent
+static TLS certificate. Project folder selection uses the upstream implementation.
+The commits remain a linear stack rebased onto upstream `main`.
 
 ## Automated updates
 
